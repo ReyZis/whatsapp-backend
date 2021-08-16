@@ -2,7 +2,8 @@
 import express from "express";
 import mongoose from "mongoose";
 import Messages from "./dbMessages.js";
-import Rooms from "./dbRooms.js";
+import Rooms from "./roomsCollection.js";
+import Users from "./userCollection.js";
 import Pusher from "pusher";
 import cors from "cors";
 
@@ -37,12 +38,16 @@ const db = mongoose.connection;
 db.once("open", () => {
     console.log("db connected");
 
+    const usersCollection = db.collection("users");
+    const usersChangeStream = usersCollection.watch();
+    console.log("users connected");
+
     const roomCollection = db.collection("rooms");
     const roomChangeStream = roomCollection.watch();
     console.log("rooms connected");
 
     roomChangeStream.on("change", (change) => {
-        console.log("a room change occured:", change);
+        // console.log("a room change occured:", change);
 
         if (change.operationType === "insert") {
             const roomDetails = change.fullDocument;
@@ -80,14 +85,61 @@ db.once("open", () => {
 // api routes
 app.get("/", (req, res) => res.status(200).send("hello world"));
 
-app.get("/rooms/sync", (req, res) => {
-    Rooms.find((err, data) => {
-        if (err) {
-            res.status(500).send(err);
-        } else {
-            res.status(200).send(data);
+app.post("/rooms/sync", (req, res) => {
+    const user = req.body;
+    console.log("searching for rooms for this email", req.body.email);
+    Rooms.find(
+        { $or: [{ userOne: user.email }, { userTwo: user.email }] },
+        (err, data) => {
+            if (err) {
+                res.status(500).send(err);
+            } else {
+                console.log(data);
+                res.status(200).send(data);
+            }
         }
-    });
+    );
+});
+
+app.post("/rooms/new", (req, res) => {
+    const roomDetails = req.body;
+    Rooms.findOne(
+        {
+            userOne: roomDetails.userOne,
+            userTwo: roomDetails.userTwo,
+        },
+        (err, foundRoom) => {
+            if (err) {
+                console.log(err);
+            } else {
+                console.log("figuring if the room already exist", roomDetails);
+                if (!foundRoom) {
+                    Rooms.create(roomDetails, (err, newRoom) => {
+                        if (err) {
+                            res.status(500).send(err);
+                        } else {
+                            db.collection("users").updateMany(
+                                {
+                                    $or: [
+                                        { email: roomDetails.userOne },
+                                        { email: roomDetails.userTwo },
+                                    ],
+                                },
+                                {
+                                    $addToSet: {
+                                        rooms: newRoom._id.toString(),
+                                    },
+                                }
+                            );
+                            res.status(201).send(newRoom);
+                        }
+                    });
+                } else {
+                    res.send("this room already exist");
+                }
+            }
+        }
+    );
 });
 
 app.get("/messages/sync", (req, res) => {
@@ -100,10 +152,9 @@ app.get("/messages/sync", (req, res) => {
     });
 });
 
-app.post("/rooms/new", (req, res) => {
-    const roomDetails = req.body;
-    console.log(roomDetails);
-    Rooms.create(roomDetails, (err, data) => {
+app.post("/messages/new", (req, res) => {
+    const dbMessage = req.body;
+    Messages.create(dbMessage, (err, data) => {
         if (err) {
             res.status(500).send(err);
         } else {
@@ -112,13 +163,36 @@ app.post("/rooms/new", (req, res) => {
     });
 });
 
-app.post("/messages/new", (req, res) => {
-    const dbMessage = req.body;
-    Messages.create(dbMessage, (err, data) => {
+app.post("/users/new", (req, res) => {
+    const userDetails = req.body;
+    Users.findOne({ email: userDetails.email }, (err, foundUser) => {
+        if (err) {
+            console.log(err);
+        } else {
+            if (!foundUser) {
+                Users.create(userDetails, (err, data) => {
+                    if (err) {
+                        res.status(500).send(err);
+                    } else {
+                        console.log("a new user has been inserted", data);
+                        res.status(201).send(data);
+                    }
+                });
+            } else {
+                res.send("this user already exist");
+            }
+        }
+    });
+});
+
+app.post("/users/sync", (req, res) => {
+    const user = req.body;
+    Users.findOne({ email: user.email }, (err, data) => {
         if (err) {
             res.status(500).send(err);
         } else {
-            res.status(201).send(data);
+            console.log(data);
+            res.status(200).send(data);
         }
     });
 });

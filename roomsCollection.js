@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
 
 const roomSchema = mongoose.Schema({
-    name: String,
-    photo: String,
+    userOne: String,
+    userTwo: String,
     lastMessage: String,
 });
 
