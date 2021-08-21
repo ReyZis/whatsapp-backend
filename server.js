@@ -1,7 +1,6 @@
 // importing
 import express from "express";
 import mongoose from "mongoose";
-import Messages from "./dbMessages.js";
 import Rooms from "./roomsCollection.js";
 import Users from "./userCollection.js";
 import Pusher from "pusher";
@@ -49,32 +48,17 @@ db.once("open", () => {
     roomChangeStream.on("change", (change) => {
         // console.log("a room change occured:", change);
 
-        if (change.operationType === "insert") {
-            const roomDetails = change.fullDocument;
-            pusher.trigger("rooms", "inserted", {
-                name: roomDetails.name,
-                photo: roomDetails.photo,
-                lastMessage: roomDetails.lastMessage,
-            });
-        } else {
-            console.log("error triggering pusher");
-        }
-    });
+        if (change.operationType === "update") {
+            const updatedField = change.updateDescription.updatedFields;
+            const messageDetails = updatedField[Object.keys(updatedField)[0]];
 
-    const msgCollection = db.collection("messagecontents");
-    const msgChangeStream = msgCollection.watch();
-    console.log("messagecontents connected");
+            console.log("a room change occured:", messageDetails);
 
-    msgChangeStream.on("change", (change) => {
-        console.log("a message change occured:", change);
-
-        if (change.operationType === "insert") {
-            const messageDetails = change.fullDocument;
-            pusher.trigger("messages", "inserted", {
+            pusher.trigger("rooms", "new message", {
                 name: messageDetails.name,
                 message: messageDetails.message,
-                timestamp: messageDetails.timestamp,
-                received: messageDetails.received,
+                createdAt: messageDetails.createdAt,
+                updatedAt: messageDetails.updatedAt,
             });
         } else {
             console.log("error triggering pusher");
@@ -142,25 +126,43 @@ app.post("/rooms/new", (req, res) => {
     );
 });
 
-app.get("/messages/sync", (req, res) => {
-    Messages.find((err, data) => {
+app.post("/messages/sync", (req, res) => {
+    const _id = req.body._id;
+    Rooms.findOne({ _id }, (err, data) => {
         if (err) {
             res.status(500).send(err);
         } else {
-            res.status(200).send(data);
+            if (data) {
+                console.log("this is the messages list", data.messages);
+                res.status(200).send(data.messages);
+            } else {
+                console.log("messages list not found");
+                res.status(404).send("not found");
+            }
         }
     });
 });
 
 app.post("/messages/new", (req, res) => {
-    const dbMessage = req.body;
-    Messages.create(dbMessage, (err, data) => {
-        if (err) {
-            res.status(500).send(err);
-        } else {
-            res.status(201).send(data);
+    const { _id, name, message } = req.body;
+    Rooms.updateOne(
+        { _id },
+        {
+            $push: {
+                messages: {
+                    name,
+                    message,
+                },
+            },
+        },
+        (err, data) => {
+            if (err) {
+                res.status(500).send(err);
+            } else {
+                res.status(201).send(data);
+            }
         }
-    });
+    );
 });
 
 app.post("/users/new", (req, res) => {
