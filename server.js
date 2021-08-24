@@ -46,20 +46,29 @@ db.once("open", () => {
     console.log("rooms connected");
 
     roomChangeStream.on("change", (change) => {
-        // console.log("a room change occured:", change);
+        console.log("a room change occured:", change);
 
         if (change.operationType === "update") {
             const updatedField = change.updateDescription.updatedFields;
             const messageDetails = updatedField[Object.keys(updatedField)[0]];
 
-            console.log("a room change occured:", messageDetails);
+            console.log("a new message came:", messageDetails);
 
-            pusher.trigger("rooms", "new message", {
-                name: messageDetails.name,
-                message: messageDetails.message,
-                createdAt: messageDetails.createdAt,
-                updatedAt: messageDetails.updatedAt,
-            });
+            if (Array.isArray(messageDetails)) {
+                pusher.trigger("rooms", "new message", {
+                    name: messageDetails[0].name,
+                    message: messageDetails[0].message,
+                    createdAt: messageDetails[0].createdAt,
+                    updatedAt: messageDetails[0].updatedAt,
+                });
+            } else {
+                pusher.trigger("rooms", "new message", {
+                    name: messageDetails.name,
+                    message: messageDetails.message,
+                    createdAt: messageDetails.createdAt,
+                    updatedAt: messageDetails.updatedAt,
+                });
+            }
         } else {
             console.log("error triggering pusher");
         }

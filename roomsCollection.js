@@ -14,7 +14,6 @@ const roomSchema = mongoose.Schema({
     userOne: String,
     userTwo: String,
     messages: [messageSchema],
-    lastMessage: String,
 });
 
 export default mongoose.model("rooms", roomSchema);
