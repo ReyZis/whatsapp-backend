@@ -181,9 +181,9 @@ app.post("/users/new", (req, res) => {
             console.log(err);
         } else {
             if (!foundUser) {
-                Users.create(userDetails, (err, data) => {
-                    if (err) {
-                        res.status(500).send(err);
+                Users.create(userDetails, (error, data) => {
+                    if (error) {
+                        res.status(500).send(error);
                     } else {
                         console.log("a new user has been inserted", data);
                         res.status(201).send(data);
