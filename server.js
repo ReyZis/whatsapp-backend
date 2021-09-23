@@ -24,7 +24,7 @@ app.use(cors());
 
 // DB config
 const connection_url =
-    "mongodb+srv://admin:YASoNldXC1ZmznVW@cluster0.db5pt.mongodb.net/whatsapp_db?retryWrites=true&w=majority";
+    "mongodb+srv://admin:<password>@cluster0.db5pt.mongodb.net/myFirstDatabase?retryWrites=true&w=majority";
 
 mongoose.connect(connection_url, {
     userCreateIndex: true,
